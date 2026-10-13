@@ -1,0 +1,33 @@
+# Brings up Redis + the RiskRelay scoring API together, so the store-backed /score
+# path runs against a real Redis with shared state across the 4 uvicorn workers.
+#
+#   docker compose up --build
+#   curl localhost:8000/health
+#
+# Load test against it:
+#   python loadtest/loadtest.py --host http://localhost:8000 --backend redis \
+#       --server "uvicorn 4 workers (compose)"
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    # bound memory + LRU eviction: feature-store keys already carry TTLs, this
+    # is a safety net so a runaway never OOMs the box.
+    command: ["redis-server", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      FEATURE_STORE_BACKEND: redis
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy

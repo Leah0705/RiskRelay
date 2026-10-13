@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Interactive companion to RiskRelay: move the decision threshold and watch the review queue move with it. Every point is a measured evaluation of the trained model.">
+<meta name="author" content="Yuanping Li">
+<link rel="canonical" href="https://leah0705.github.io/RiskRelay/">
+<meta property="og:title" content="The cutoff is the product">
+<meta property="og:description" content="One trained model, one score per event. Moving only the cutoff takes the review queue from 4,199 alerts a day to 83.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://leah0705.github.io/RiskRelay/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230E0D0C'/><rect x='18' y='44' width='64' height='7' rx='3.5' fill='%23FF6A2A'/><circle cx='62' cy='47.5' r='14' fill='%23FF6A2A'/></svg>">
+<title>Risk Review Cutoff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* minimal reset — the hosted runtime normally provides this */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body,h1,h2,p{margin:0}
+button,input{font:inherit;color:inherit}
+img,svg{max-width:100%}
+</style>
+</head>
+<body>
+<style>
+:root{
+  --paper:#FBFBF7; --card:#FFFFFF; --sunk:#F2F1EA;
+  --ink:#0F0E0E; --body:#2B2A2A; --mute:#5F5C56; --faint:#8F8B83;
+  --line:#DEDCD4; --line-strong:#C6C3B9;
+  --volt:#E14E00; --volt-soft:#FFE7D8; --volt-ink:#8A3200;
+  --caught:#1E7A44; --missed:#A82C24;
+  --grid-cell:#CFCCC3;
+  --recall:#3D72B0; --precision:#6B4CB0;
+  --shadow:0 1px 2px rgba(15,14,14,.05), 0 8px 24px -12px rgba(15,14,14,.12);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0E0D0C; --card:#181715; --sunk:#111010;
+    --ink:#F5F3EE; --body:#D9D5CC; --mute:#9A958B; --faint:#726D64;
+    --line:#2C2A26; --line-strong:#3D3A34;
+    --volt:#FF6A2A; --volt-soft:#2E1A0E; --volt-ink:#FFB88F;
+    --caught:#4FBE7C; --missed:#E5716A;
+    --grid-cell:#3A3733;
+    --recall:#7FA9DC; --precision:#A48FD6;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0E0D0C; --card:#181715; --sunk:#111010;
+  --ink:#F5F3EE; --body:#D9D5CC; --mute:#9A958B; --faint:#726D64;
+  --line:#2C2A26; --line-strong:#3D3A34;
+  --volt:#FF6A2A; --volt-soft:#2E1A0E; --volt-ink:#FFB88F;
+  --caught:#4FBE7C; --missed:#E5716A;
+  --grid-cell:#3A3733;
+  --recall:#7FA9DC; --precision:#A48FD6;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--paper); color:var(--body);
+  font-family:"Archivo","Helvetica Neue",Arial,sans-serif;
+  margin:0; padding:clamp(20px,4vw,56px) clamp(16px,4vw,40px) 72px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:clamp(24px,3.5vw,40px)}
+
+.eyebrow{
+  font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--volt);margin:0 0 14px;
+}
+h1{
+  font-size:clamp(30px,5.2vw,48px);line-height:1.04;letter-spacing:-.022em;
+  font-weight:700;color:var(--ink);margin:0;text-wrap:balance;
+}
+.standfirst{
+  font-family:"Source Serif 4",Georgia,serif;font-size:clamp(16px,2vw,19px);
+  line-height:1.55;color:var(--body);max-width:62ch;margin:16px 0 0;
+}
+.source{
+  font-size:12px;color:var(--faint);margin:18px 0 0;line-height:1.6;
+  font-variant-numeric:tabular-nums;
+}
+.source code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;color:var(--mute)}
+
+.panel{
+  background:var(--card);border:1px solid var(--line);border-radius:4px;
+  box-shadow:var(--shadow);
+}
+.panel-head{
+  display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;justify-content:space-between;
+  padding:18px 22px;border-bottom:1px solid var(--line);
+}
+.panel-title{
+  font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);margin:0;
+}
+.panel-note{font-size:12px;color:var(--faint);margin:0}
+
+/* ---- the lever ---- */
+.lever{padding:26px 22px 22px;display:flex;flex-direction:column;gap:20px}
+.lever-top{display:flex;flex-wrap:wrap;align-items:flex-end;gap:20px;justify-content:space-between}
+.tval{display:flex;align-items:baseline;gap:10px}
+.tval .num{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:clamp(38px,6vw,54px);
+  font-weight:600;color:var(--volt);line-height:.95;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;
+}
+.tval .lbl{font-size:12px;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+.presets{display:flex;flex-wrap:wrap;gap:8px}
+.presets button{
+  font-family:inherit;font-size:12px;font-weight:500;color:var(--body);
+  background:var(--sunk);border:1px solid var(--line);border-radius:3px;
+  padding:8px 13px;cursor:pointer;transition:border-color .15s,color .15s,background .15s;
+  line-height:1.3;text-align:left;
+}
+.presets button:hover{border-color:var(--line-strong);color:var(--ink)}
+.presets button[aria-pressed="true"]{
+  background:var(--volt-soft);border-color:var(--volt);color:var(--volt-ink);font-weight:600;
+}
+.presets button:focus-visible{outline:2px solid var(--volt);outline-offset:2px}
+.presets b{display:block;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;font-weight:600}
+.presets span{display:block;font-size:10.5px;color:var(--faint);margin-top:2px;letter-spacing:.02em}
+.presets button[aria-pressed="true"] span{color:var(--volt-ink);opacity:.8}
+
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;background:transparent;margin:0;cursor:grab;
+}
+input[type=range]:active{cursor:grabbing}
+input[type=range]::-webkit-slider-runnable-track{
+  height:6px;border-radius:3px;background:var(--line);
+}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;
+  background:var(--volt);border:3px solid var(--card);margin-top:-8px;
+  box-shadow:0 0 0 1px var(--volt);
+}
+input[type=range]::-moz-range-thumb{
+  width:22px;height:22px;border-radius:50%;background:var(--volt);
+  border:3px solid var(--card);box-shadow:0 0 0 1px var(--volt);
+}
+input[type=range]:focus-visible{outline:2px solid var(--volt);outline-offset:6px;border-radius:3px}
+.scale{
+  display:flex;justify-content:space-between;font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:11px;color:var(--faint);margin-top:-10px;font-variant-numeric:tabular-nums;
+}
+
+/* ---- readout ---- */
+.readout{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  border-top:1px solid var(--line);
+}
+.stat{padding:18px 22px;border-right:1px solid var(--line)}
+.stat:last-child{border-right:none}
+.stat .k{
+  font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--mute);margin:0 0 8px;line-height:1.35;
+}
+.stat .v{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:26px;font-weight:600;
+  color:var(--ink);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+}
+.stat .v.accent{color:var(--volt)}
+.stat .sub{font-size:11.5px;color:var(--faint);margin-top:7px;line-height:1.4}
+
+/* ---- queue grid ---- */
+.queue{padding:22px}
+.qmeta{
+  display:flex;flex-wrap:wrap;gap:18px;align-items:center;
+  font-size:12px;color:var(--mute);margin-bottom:16px;
+}
+.key{display:inline-flex;align-items:center;gap:7px}
+.sw{width:11px;height:11px;border-radius:2px;display:inline-block;flex:none}
+.sw.f{background:var(--volt)}
+.sw.n{background:var(--grid-cell)}
+#grid{
+  display:flex;flex-wrap:wrap;gap:3px;align-content:flex-start;
+  max-height:300px;overflow-y:auto;
+}
+.cell{width:9px;height:9px;border-radius:1.5px;background:var(--grid-cell);flex:none}
+.cell.f{background:var(--volt)}
+.cell.ghost{background:transparent;box-shadow:inset 0 0 0 1px var(--line)}
+.sw.g{background:transparent;box-shadow:inset 0 0 0 1px var(--line-strong)}
+.qfoot{font-size:12px;color:var(--faint);margin-top:14px;line-height:1.5}
+
+/* ---- chart ---- */
+.chartwrap{padding:22px;overflow-x:auto}
+svg{display:block;width:100%;height:auto;min-width:520px}
+.ax{stroke:var(--line);stroke-width:1}
+.gridline{stroke:var(--line);stroke-width:1;stroke-dasharray:2 4;opacity:.7}
+.axlbl{fill:var(--faint);font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px}
+.curve-r{fill:none;stroke:var(--recall);stroke-width:2.2;stroke-linejoin:round}
+.curve-p{fill:none;stroke:var(--precision);stroke-width:2.2;stroke-linejoin:round}
+.lbl-r{fill:var(--recall)}
+.lbl-p{fill:var(--precision)}
+.cut{stroke:var(--volt);stroke-width:1.6}
+.cutdot{fill:var(--volt);stroke:var(--card);stroke-width:2}
+.sparse{fill:var(--line);opacity:.35}
+.clbl{fill:var(--mute);font-family:"Archivo",sans-serif;font-size:11px;font-weight:600}
+
+/* ---- prose ---- */
+.notes{
+  display:grid;gap:clamp(20px,3vw,32px);
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+}
+.note h2{
+  font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink);margin:0 0 12px;padding-bottom:9px;border-bottom:1px solid var(--line);
+}
+.note p{
+  font-family:"Source Serif 4",Georgia,serif;font-size:15.5px;line-height:1.65;
+  color:var(--body);margin:0 0 12px;
+}
+.note p:last-child{margin-bottom:0}
+.note strong{font-weight:600;color:var(--ink)}
+.note code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:13px;color:var(--volt-ink)}
+
+footer{
+  border-top:1px solid var(--line);padding-top:20px;font-size:12px;
+  color:var(--faint);line-height:1.6;
+}
+footer a{color:var(--volt);text-decoration:none;border-bottom:1px solid transparent}
+footer a:hover{border-bottom-color:var(--volt)}
+footer a:focus-visible{outline:2px solid var(--volt);outline-offset:2px}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media (max-width:560px){
+  .stat{border-right:none;border-bottom:1px solid var(--line)}
+  .readout .stat:last-child{border-bottom:none}
+}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">RiskRelay &middot; interactive</p>
+    <h1>The cutoff is the product</h1>
+    <p class="standfirst">
+      One trained model. One score per event. The only thing that moves below is where
+      you cut the ranked list, and it takes the reviewers&rsquo; daily queue from roughly
+      four thousand alerts to under a hundred. Nothing about the model changes.
+    </p>
+    <p class="source">
+      Measured on the held-out chronological test split: 75,000 events over 4.55 days,
+      1,762 of them high-risk. Every point is a real evaluation of the trained XGBoost model,
+      not a simulation. The preset points match <code>reports/operating_points.json</code>
+      (regenerate with <code>python scripts/operating_points.py</code>). The slider steps in
+      hundredths, so the presets are rounded: the pipeline&rsquo;s own tuned values are 0.6629
+      and 0.8084.
+    </p>
+  </header>
+
+  <section class="panel" aria-labelledby="lever-h">
+    <div class="panel-head">
+      <p class="panel-title" id="lever-h">Decision threshold</p>
+      <p class="panel-note">Score at or above the cutoff becomes an alert a reviewer must check</p>
+    </div>
+
+    <div class="lever">
+      <div class="lever-top">
+        <div class="tval">
+          <span class="num" id="tnum">0.50</span>
+          <span class="lbl">cutoff</span>
+        </div>
+        <div class="presets" role="group" aria-label="Preset operating points">
+          <button type="button" data-t="0.50"><b>0.50</b><span>default</span></button>
+          <button type="button" data-t="0.66"><b>0.66</b><span>F1-optimal</span></button>
+          <button type="button" data-t="0.81"><b>0.81</b><span>precision-constrained</span></button>
+        </div>
+      </div>
+      <input type="range" id="slider" min="1" max="99" step="1" value="50"
+             aria-label="Decision threshold" aria-describedby="lever-h">
+      <div class="scale"><span>0.01</span><span>0.50</span><span>0.99</span></div>
+    </div>
+
+    <div class="readout">
+      <div class="stat">
+        <p class="k">Alerts per day</p>
+        <div class="v accent" id="s-alerts">&mdash;</div>
+        <p class="sub" id="s-alerts-sub">the review queue</p>
+      </div>
+      <div class="stat">
+        <p class="k">High-risk caught</p>
+        <div class="v" id="s-recall">&mdash;</div>
+        <p class="sub" id="s-recall-sub">of 387 a day</p>
+      </div>
+      <div class="stat">
+        <p class="k">Precision</p>
+        <div class="v" id="s-prec">&mdash;</div>
+        <p class="sub" id="s-prec-sub">share of alerts that are real</p>
+      </div>
+      <div class="stat">
+        <p class="k">Wasted reviews</p>
+        <div class="v" id="s-fp">&mdash;</div>
+        <p class="sub" id="s-fp-sub">per real catch</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="queue-h">
+    <div class="panel-head">
+      <p class="panel-title" id="queue-h">One day of the queue</p>
+      <p class="panel-note">Each square is 25 alerts landing on a reviewer&rsquo;s desk</p>
+    </div>
+    <div class="queue">
+      <div class="qmeta">
+        <span class="key"><i class="sw f"></i> truly high-risk</span>
+        <span class="key"><i class="sw n"></i> false alarm</span>
+        <span class="key"><i class="sw g"></i> the queue at the 0.50 default, for scale</span>
+      </div>
+      <div id="grid" role="img" aria-label="Alert queue volume"></div>
+      <p class="qfoot" id="qfoot"></p>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="chart-h">
+    <div class="panel-head">
+      <p class="panel-title" id="chart-h">The measured curve</p>
+      <p class="panel-note">Precision and recall at every cutoff from 0.01 to 0.99</p>
+    </div>
+    <div class="chartwrap">
+      <svg id="chart" viewBox="0 0 720 300" role="img"
+           aria-label="Recall falls and precision climbs as the cutoff rises"></svg>
+    </div>
+  </section>
+
+  <section class="notes">
+    <div class="note">
+      <h2>What you are moving</h2>
+      <p>
+        The model scores every event once. The cutoff decides which of those scores
+        becomes an alert, so the cutoff sets how much work lands on the team each day.
+      </p>
+      <p>
+        Drag it left and the queue floods: at <code>0.50</code> a team would face about
+        4,199 alerts a day and waste roughly 18 reviews for every real catch. Drag it right
+        and the queue becomes staffable, at the cost of the high-risk events you never look at.
+      </p>
+      <p>
+        That is a staffing decision, not a modelling one, which is the whole argument the
+        project was built to make.
+      </p>
+    </div>
+    <div class="note">
+      <h2>Why the numbers are low</h2>
+      <p>
+        This runs on synthetic data, and the generator builds labels in two passes: it plants
+        850 positives that separate cleanly on the PCA features, then flips a further 10,906
+        <em>normal</em> rows to positive so the counterparty and device features correlate
+        with something.
+      </p>
+      <p>
+        So <strong>93% of the positives look exactly like normal traffic</strong> in the
+        feature space. Scored separately, the model reaches <strong>0.691 PR-AUC</strong> on
+        the positives that carry signal and <strong>0.048</strong> on the rest. The headline
+        0.112 mixes the two.
+      </p>
+      <p>
+        The pipeline is not the weak part here. The label is.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    Interactive companion to RiskRelay.
+    Source and reproduction commands:
+    <a href="https://github.com/Leah0705/RiskRelay">Leah0705/RiskRelay</a>.
+    Serving performance, model comparison, and the lifecycle gate are covered in the
+    <a href="https://github.com/Leah0705/RiskRelay#readme">README</a>.
+  </footer>
+
+</div>
+
+<script>
+const D={"span_days":4.5517,"test_n":75000,"test_pos":1762,"curve":[[0.01,0.0288,0.9415,57555],[0.02,0.0286,0.933,57512],[0.03,0.0284,0.9251,57435],[0.04,0.0283,0.9205,57282],[0.05,0.0284,0.92,57015],[0.06,0.0286,0.9188,56627],[0.07,0.0288,0.9171,56104],[0.08,0.0291,0.916,55401],[0.09,0.0295,0.9132,54583],[0.1,0.0299,0.9115,53683],[0.11,0.0304,0.9086,52663],[0.12,0.0309,0.9035,51585],[0.13,0.0314,0.899,50477],[0.14,0.032,0.8961,49329],[0.15,0.0326,0.8922,48192],[0.16,0.0333,0.8893,47037],[0.17,0.0338,0.882,45945],[0.18,0.0344,0.8757,44834],[0.19,0.0349,0.8678,43824],[0.2,0.0355,0.8627,42844],[0.21,0.036,0.8564,41911],[0.22,0.0366,0.8519,40999],[0.23,0.0371,0.8451,40154],[0.24,0.0376,0.8383,39277],[0.25,0.0381,0.8326,38489],[0.26,0.0383,0.8195,37713],[0.27,0.0389,0.8138,36907],[0.28,0.0394,0.8076,36149],[0.29,0.0398,0.8008,35430],[0.3,0.0402,0.79,34656],[0.31,0.0405,0.7798,33913],[0.32,0.0411,0.773,33117],[0.33,0.0418,0.7679,32374],[0.34,0.0423,0.7588,31642],[0.35,0.0427,0.7486,30915],[0.36,0.043,0.7367,30185],[0.37,0.0434,0.7253,29457],[0.38,0.0441,0.7157,28607],[0.39,0.0446,0.7037,27833],[0.4,0.0451,0.6935,27102],[0.41,0.0455,0.6799,26327],[0.42,0.046,0.6657,25522],[0.43,0.0463,0.6504,24729],[0.44,0.0467,0.6351,23967],[0.45,0.0473,0.6209,23143],[0.46,0.048,0.6084,22331],[0.47,0.049,0.5993,21546],[0.48,0.0502,0.5908,20735],[0.49,0.0513,0.58,19931],[0.5,0.0518,0.5619,19112],[0.51,0.0526,0.5465,18323],[0.52,0.0533,0.5295,17506],[0.53,0.0538,0.5096,16694],[0.54,0.0544,0.4909,15895],[0.55,0.0554,0.4739,15070],[0.56,0.0557,0.4512,14276],[0.57,0.0568,0.4347,13490],[0.58,0.0582,0.4194,12703],[0.59,0.0589,0.3984,11917],[0.6,0.0603,0.3814,11146],[0.61,0.0607,0.3581,10400],[0.62,0.0616,0.3377,9656],[0.63,0.0628,0.3195,8960],[0.64,0.064,0.2991,8228],[0.65,0.0646,0.277,7551],[0.66,0.0664,0.2582,6854],[0.67,0.0689,0.2423,6201],[0.68,0.0708,0.223,5547],[0.69,0.0728,0.2037,4929],[0.7,0.0746,0.1816,4287],[0.71,0.081,0.172,3739],[0.72,0.086,0.1544,3162],[0.73,0.0913,0.1379,2663],[0.74,0.0971,0.1237,2245],[0.75,0.108,0.1124,1834],[0.76,0.1222,0.1027,1481],[0.77,0.1435,0.0953,1171],[0.78,0.1612,0.0834,912],[0.79,0.1959,0.0755,679],[0.8,0.2324,0.0692,525],[0.81,0.3008,0.0647,379],[0.82,0.403,0.0602,263],[0.83,0.5355,0.0556,183],[0.84,0.6786,0.0539,140],[0.85,0.748,0.0522,123],[0.86,0.8641,0.0505,103],[0.87,0.9263,0.0499,95],[0.88,0.967,0.0499,91],[0.89,0.9888,0.0499,89],[0.9,1.0,0.0499,88],[0.91,1.0,0.0499,88],[0.92,1.0,0.0499,88],[0.93,1.0,0.0488,86],[0.94,1.0,0.0488,86],[0.95,1.0,0.0477,84],[0.96,1.0,0.0477,84],[0.97,1.0,0.0471,83],[0.98,1.0,0.0465,82],[0.99,1.0,0.0443,78]]};
+
+const SPAN=D.span_days, POS=D.test_pos, C=D.curve;
+const PER_CELL=25;
+const fmt=n=>n.toLocaleString("en-US");
+const REF_CELLS=Math.round(C.find(r=>Math.abs(r[0]-0.5)<1e-9)[3]/SPAN/PER_CELL);
+const at=i=>C[Math.max(0,Math.min(C.length-1,i-1))];
+
+const el={
+  slider:document.getElementById("slider"),
+  tnum:document.getElementById("tnum"),
+  alerts:document.getElementById("s-alerts"),
+  alertsSub:document.getElementById("s-alerts-sub"),
+  recall:document.getElementById("s-recall"),
+  recallSub:document.getElementById("s-recall-sub"),
+  prec:document.getElementById("s-prec"),
+  precSub:document.getElementById("s-prec-sub"),
+  fp:document.getElementById("s-fp"),
+  fpSub:document.getElementById("s-fp-sub"),
+  grid:document.getElementById("grid"),
+  qfoot:document.getElementById("qfoot"),
+  presets:[...document.querySelectorAll(".presets button")]
+};
+
+const posPerDay=POS/SPAN;
+document.getElementById("s-recall-sub").textContent="of "+Math.round(posPerDay)+" a day";
+
+function render(idx){
+  const [t,prec,rec,alerts]=at(idx);
+  const perDay=alerts/SPAN;
+  const caught=rec*POS, caughtDay=caught/SPAN;
+  const fpDay=perDay-caughtDay;
+  const fpPerTp=caught>0?(alerts-caught)/caught:null;
+
+  el.tnum.textContent=t.toFixed(2);
+  el.alerts.textContent=fmt(Math.round(perDay));
+  el.alertsSub.textContent=(perDay/16477*100).toFixed(1)+"% of all events";
+  el.recall.textContent=(rec*100).toFixed(1)+"%";
+  el.recallSub.textContent=Math.round(caughtDay)+" of "+Math.round(posPerDay)+" a day";
+  el.prec.textContent=(prec*100).toFixed(1)+"%";
+  el.precSub.textContent=prec>=0.5?"most alerts are truly high-risk":"share of alerts that are real";
+  el.fp.textContent=fpPerTp===null?"—":fpPerTp.toFixed(1);
+  el.fpSub.textContent=fpPerTp!==null&&fpPerTp<3?"per real catch — staffable":"per real catch";
+
+  // queue grid
+  const cells=Math.max(1,Math.round(perDay/PER_CELL));
+  const posCells=Math.min(cells,Math.round(caughtDay/PER_CELL));
+  // A fixed reference block (the 0.50 default queue) sits behind the live one,
+  // so shrinking from 167 squares to 3 reads as a shrink rather than an
+  // empty panel.
+  const total=Math.max(cells,REF_CELLS);
+  const frag=document.createDocumentFragment();
+  for(let i=0;i<total;i++){
+    const d=document.createElement("i");
+    d.className="cell"+(i>=cells?" ghost":(i<posCells?" f":""));
+    frag.appendChild(d);
+  }
+  el.grid.replaceChildren(frag);
+  el.grid.setAttribute("aria-label",
+    Math.round(perDay)+" alerts a day, of which about "+Math.round(caughtDay)+" are truly high-risk");
+  el.qfoot.textContent=cells+" square"+(cells===1?"":"s")+" · "+fmt(Math.round(perDay))
+    +" alerts a day, about "+Math.round(caughtDay)+" of them truly high-risk and "
+    +fmt(Math.round(fpDay))+" of them a wasted review.";
+
+  el.presets.forEach(b=>b.setAttribute("aria-pressed",
+    String(Math.abs(parseFloat(b.dataset.t)-t)<0.005)));
+  drawCut(t,prec,rec);
+}
+
+// ---------- chart ----------
+const W=720,H=300,M={l:44,r:16,t:18,b:34};
+const px=t=>M.l+(t-0.01)/0.98*(W-M.l-M.r);
+const py=v=>H-M.b-v*(H-M.t-M.b);
+const svg=document.getElementById("chart");
+
+function path(key){
+  return C.map((p,i)=>(i?"L":"M")+px(p[0]).toFixed(1)+" "+py(p[key]).toFixed(1)).join(" ");
+}
+function build(){
+  let s="";
+  s+=`<rect x="${px(0.875)}" y="${M.t}" width="${W-M.r-px(0.875)}" height="${H-M.t-M.b}" class="sparse"/>`;
+  for(let v=0;v<=1.0001;v+=0.25){
+    s+=`<line class="gridline" x1="${M.l}" y1="${py(v)}" x2="${W-M.r}" y2="${py(v)}"/>`;
+    s+=`<text class="axlbl" x="${M.l-8}" y="${py(v)+3.5}" text-anchor="end">${v.toFixed(2)}</text>`;
+  }
+  for(let t=0.2;t<1;t+=0.2){
+    s+=`<text class="axlbl" x="${px(t)}" y="${H-M.b+18}" text-anchor="middle">${t.toFixed(1)}</text>`;
+  }
+  s+=`<text class="axlbl" x="${px(0.01)}" y="${H-M.b+18}" text-anchor="middle">0.01</text>`;
+  s+=`<line class="ax" x1="${M.l}" y1="${H-M.b}" x2="${W-M.r}" y2="${H-M.b}"/>`;
+  s+=`<path class="curve-r" d="${path(2)}"/>`;
+  s+=`<path class="curve-p" d="${path(1)}"/>`;
+  s+=`<text class="clbl lbl-r" x="${px(0.06)}" y="${py(0.94)-9}">recall</text>`;
+  s+=`<text class="clbl lbl-p" x="${px(0.9)}" y="${py(1)-9}" text-anchor="end">precision</text>`;
+  s+=`<text class="axlbl" x="${px(0.925)}" y="${M.t+14}" text-anchor="middle">under 20</text>`;
+  s+=`<text class="axlbl" x="${px(0.925)}" y="${M.t+26}" text-anchor="middle">alerts/day</text>`;
+  s+=`<g id="cutg"><line class="cut" id="cutline" y1="${M.t}" y2="${H-M.b}"/>`
+    +`<circle class="cutdot" id="dotr" r="4.5"/><circle class="cutdot" id="dotp" r="4.5"/></g>`;
+  s+=`<text class="axlbl" x="${(M.l+W-M.r)/2}" y="${H-4}" text-anchor="middle">decision threshold</text>`;
+  svg.innerHTML=s;
+}
+function drawCut(t,prec,rec){
+  const x=px(t);
+  svg.querySelector("#cutline").setAttribute("x1",x);
+  svg.querySelector("#cutline").setAttribute("x2",x);
+  const dr=svg.querySelector("#dotr"), dp=svg.querySelector("#dotp");
+  dr.setAttribute("cx",x); dr.setAttribute("cy",py(rec));
+  dp.setAttribute("cx",x); dp.setAttribute("cy",py(prec));
+}
+
+build();
+el.slider.addEventListener("input",e=>render(+e.target.value));
+// A wheel over a range input changes its value, so a reader scrolling past the
+// panel would silently move the cutoff. Scroll the page instead, unless the
+// slider is focused and the adjustment is deliberate.
+el.slider.addEventListener("wheel",e=>{
+  if(document.activeElement===el.slider) return;
+  e.preventDefault();
+  window.scrollBy(0,e.deltaY);
+},{passive:false});
+el.presets.forEach(b=>b.addEventListener("click",()=>{
+  const v=Math.round(parseFloat(b.dataset.t)*100);
+  el.slider.value=v; render(v);
+}));
+render(50);
+</script>
+</body>
+</html>

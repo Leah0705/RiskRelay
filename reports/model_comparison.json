@@ -1,0 +1,86 @@
+[
+  {
+    "model": "Logistic Regression",
+    "threshold": 0.5,
+    "roc_auc": 0.5430691903395578,
+    "pr_auc": 0.10088320155583017,
+    "precision": 0.026429665135477,
+    "recall": 0.45062429057888764,
+    "f1": 0.04993082631115583,
+    "confusion_matrix": [
+      [
+        43990,
+        29248
+      ],
+      [
+        968,
+        794
+      ]
+    ],
+    "n_samples": 75000,
+    "n_positive": 1762
+  },
+  {
+    "model": "Random Forest",
+    "threshold": 0.5,
+    "roc_auc": 0.7569616763271977,
+    "pr_auc": 0.13551432102262145,
+    "precision": 0.0483225492762838,
+    "recall": 0.7332576617480137,
+    "f1": 0.09066984806484438,
+    "confusion_matrix": [
+      [
+        47793,
+        25445
+      ],
+      [
+        470,
+        1292
+      ]
+    ],
+    "n_samples": 75000,
+    "n_positive": 1762
+  },
+  {
+    "model": "XGBoost (tuned threshold)",
+    "threshold": 0.6628813147544861,
+    "roc_auc": 0.7237825629308194,
+    "pr_auc": 0.11214899528270994,
+    "precision": 0.0675067506750675,
+    "recall": 0.25539160045402953,
+    "f1": 0.10678690080683437,
+    "confusion_matrix": [
+      [
+        67022,
+        6216
+      ],
+      [
+        1312,
+        450
+      ]
+    ],
+    "n_samples": 75000,
+    "n_positive": 1762
+  },
+  {
+    "model": "XGBoost (default 0.5 threshold)",
+    "threshold": 0.5,
+    "roc_auc": 0.7237825629308194,
+    "pr_auc": 0.11214899528270994,
+    "precision": 0.051799916282963585,
+    "recall": 0.5618615209988649,
+    "f1": 0.09485484334578902,
+    "confusion_matrix": [
+      [
+        55116,
+        18122
+      ],
+      [
+        772,
+        990
+      ]
+    ],
+    "n_samples": 75000,
+    "n_positive": 1762
+  }
+]

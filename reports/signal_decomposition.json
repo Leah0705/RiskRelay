@@ -1,0 +1,27 @@
+{
+  "dataset": {
+    "generator_args": {
+      "n_rows": 500000,
+      "positive_rate": 0.0017,
+      "n_accounts": 20000,
+      "n_counterparties": 3000,
+      "n_devices": 25000,
+      "seed": 42
+    },
+    "total_rows": 500000,
+    "total_positives": 11756,
+    "planted_positives": 850,
+    "flipped_positives": 10906
+  },
+  "test_split": {
+    "rows": 75000,
+    "positives": 1762,
+    "planted": 132,
+    "flipped": 1634
+  },
+  "pr_auc": {
+    "all_positives": 0.1121,
+    "planted_only": 0.6909,
+    "flipped_only": 0.0483
+  }
+}

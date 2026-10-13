@@ -1,0 +1,62 @@
+{
+  "environment": {
+    "hardware": "Linux cloud container, Intel Xeon @ 2.10GHz, 2 vCPU, 7.8 GB RAM",
+    "platform": "Linux-6.18.44-fc-v114-x86_64-with-glibc2.39",
+    "python": "3.13.16",
+    "cpu_count": 2
+  },
+  "batch_size": 1,
+  "models": {
+    "Logistic Regression": {
+      "configured_n_jobs": null,
+      "as_configured": {
+        "p50_ms": 0.593,
+        "p95_ms": 1.044,
+        "p99_ms": 1.146,
+        "mean_ms": 0.665,
+        "n_iter": 300
+      },
+      "n_jobs_1": {
+        "p50_ms": 0.626,
+        "p95_ms": 1.188,
+        "p99_ms": 3.849,
+        "mean_ms": 0.895,
+        "n_iter": 300
+      }
+    },
+    "Random Forest": {
+      "configured_n_jobs": -1,
+      "as_configured": {
+        "p50_ms": 65.938,
+        "p95_ms": 78.321,
+        "p99_ms": 88.124,
+        "mean_ms": 64.485,
+        "n_iter": 300
+      },
+      "n_jobs_1": {
+        "p50_ms": 14.357,
+        "p95_ms": 21.481,
+        "p99_ms": 22.458,
+        "mean_ms": 15.443,
+        "n_iter": 300
+      }
+    },
+    "XGBoost": {
+      "configured_n_jobs": -1,
+      "as_configured": {
+        "p50_ms": 1.429,
+        "p95_ms": 2.01,
+        "p99_ms": 3.695,
+        "mean_ms": 1.516,
+        "n_iter": 300
+      },
+      "n_jobs_1": {
+        "p50_ms": 1.598,
+        "p95_ms": 2.261,
+        "p99_ms": 3.565,
+        "mean_ms": 1.743,
+        "n_iter": 300
+      }
+    }
+  }
+}
